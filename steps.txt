@@ -1,0 +1,23 @@
+- remove uncessary layers from paper model [Done]
+    - remove Relu in Autoencoder
+- replace load from np to load from csv [Done]
+- write tensor shape change in rul model [Done]
+    - see TensorChanges.ipynb file
+
+
+Next Steps
+- add data viz to data for better transparecy
+- test common encode-decode transformer to time series prediction
+- why auto-regressive couldn't have loss decrease
+- quantization model?
+
+
+- think about a scope/journal to publish the paper
+    - Betty be PI?
+        - Find another student?
+    - based on matr dataset
+    - new postional encoding
+    - compare to all other results
+
+
+
