@@ -20,4 +20,16 @@ Next Steps
     - compare to all other results
 
 
+- neura operator
+
+
+- Use cap/volt data per cycle to enhance dataset, replace the K in the paper model, to see if this increase the performance
+
+- find latest paper use this dataset and their results.
+- Another ai tool for paper research
+
+- try auto-regressive loss should decline, de-bug
+
+- quantization try use the large dataset, or try the 4 cells data first.
+
 

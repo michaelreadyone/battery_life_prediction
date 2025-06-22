@@ -48,15 +48,16 @@ class Transformer(nn.Module):
     def __init__(self, feature_size, hidden_dim, feature_num, num_layers, nhead):
         super(Transformer, self).__init__()
         half_feature_size = int(feature_size)
-        print(f'dropout: {dropout}')
+        
         
         self.autoencoder = nn.Linear(feature_size, half_feature_size)
         self.pe = PositionalEncoding(half_feature_size, feature_num)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=feature_num, nhead=nhead, dim_feedforward=hidden_dim, dropout=dropout, batch_first=True)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=feature_num, nhead=nhead, dim_feedforward=hidden_dim, dropout=0.0, batch_first=True)
         self.layers = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.lm_head = nn.Linear(feature_num*half_feature_size, 1)
         
     def forward(self, x):
+        
         B,T,C = x.shape
         x = self.autoencoder(x)
         x = x.reshape(B, -1, T)
@@ -116,8 +117,8 @@ def load_data_from_csv(cell_type, test_cell_name):
 if __name__ == "__main__":
     
     # x, y = load_data_from_npy()
-    # x, y = load_data_from_csv(cell_type="CALCE", test_cell_name="CS2_35")
-    x, y = load_data_from_csv(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    x, y = load_data_from_csv(cell_type="CALCE", test_cell_name="CS2_35")
+    # x, y = load_data_from_csv(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
     
     model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
