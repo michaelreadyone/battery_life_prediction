@@ -7,7 +7,7 @@
 
 Next Steps
 - add data viz to data for better transparecy
-- test common encode-decode transformer to time series prediction
+- test common encode-decode transformer to time series prediction[Done]
 - why auto-regressive couldn't have loss decrease
 - quantization model?
 
@@ -20,9 +20,8 @@ Next Steps
     - compare to all other results
 
 
-- neura operator
-
-
+- Use normal transformer for prediction from a youtube tutorial[Done]
+    - Also have reasonable loss decrease, even though a little slower than paper wired model
 - Use cap/volt data per cycle to enhance dataset, replace the K in the paper model, to see if this increase the performance
 
 - find latest paper use this dataset and their results.
@@ -31,5 +30,13 @@ Next Steps
 - try auto-regressive loss should decline, de-bug
 
 - quantization try use the large dataset, or try the 4 cells data first.
+
+- Will use matr data for more cells
+
+- 又有一个大胆的想法，让模型自己去自由组合各种nn，然后去比较各个组合的效果，从而进行自我迭代。感觉可以发nature 了。
+
+
+
+
 
 

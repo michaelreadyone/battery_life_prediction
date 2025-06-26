@@ -48,54 +48,72 @@ class Transformer(nn.Module):
     def __init__(self, feature_size, hidden_dim, feature_num, num_layers, nhead):
         super(Transformer, self).__init__()
         half_feature_size = int(feature_size)
-        print(f'dropout: {dropout}')
         
-        self.autoencoder = nn.Linear(feature_size, half_feature_size)
-        self.pe = PositionalEncoding(half_feature_size, feature_num)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=feature_num, nhead=nhead, dim_feedforward=hidden_dim, dropout=dropout, batch_first=True)
+        
+        self.autoencoder = nn.Linear(1, feature_num)
+        self.pe = PositionalEncoding(feature_size, feature_num)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=feature_num, nhead=nhead, dim_feedforward=hidden_dim, dropout=0.0, batch_first=True)
         self.layers = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.lm_head = nn.Linear(feature_num*half_feature_size, 1)
         
     def forward(self, x):
+        
         B,T,C = x.shape
+        # print(f'input x.shape: {x.shape}')
         x = self.autoencoder(x)
-        x = x.reshape(B, -1, T)
+        # print(f'after autoencoder, x.shape: {x.shape}')
         x = self.pe(x)
+        # print(f'after positional encoding, x.shape: {x.shape}')
         x = self.layers(x)
+        # print(f'after transformer encoder, x.shape: {x.shape}')
         x = x.reshape(B, -1)
+        # print(f'after reshape, x.shape: {x.shape}')
         x = self.lm_head(x)
+        # print(f'after lm_head, x.shape: {x.shape}')
         return x
+
+
+def load_csv_data(cell_type):
+    input_data_dict = {
+        "CALCE": "./datasets/CALCE/CALCE.csv",
+        "matr": "./datasets/matr/matr_part.csv"
+    }
+    wanted_columns = ['cycle', 'capacity', 'cell_name']
     
-def load_data_from_npy():
-    Battery = np.load('datasets/CALCE/CALCE.npy', allow_pickle=True)
-    Battery = Battery.item() # A dict with cell name as key and dataframe as value
-    name = 'CS2_35'
+    if cell_type == "CALCE":
+        df = pd.read_csv(input_data_dict[cell_type])
+        return df[wanted_columns]
+    if cell_type == "matr":
+        df = pd.read_csv(input_data_dict[cell_type])
+        # print(f'dfread {df}')
+        df["cycle"] = df["cycle_index"]
+        df["capacity"] = df["discharge_capacity"]
+        df["cell_name"] = df["file_name"]
+        return df[wanted_columns]
+    
+def load_data_from_csv(cell_type, test_cell_name):
+    battery_df = load_csv_data(cell_type)
+    battery_df['cycle'] = battery_df['cycle'].astype(int)
+    battery_df = battery_df[battery_df['cycle'] != 0]
+    
     feature_size = 64
-    train_x, train_y, train_data, test_data = get_train_test(Battery, name, feature_size)
-    x = np.reshape(train_x/Rated_Capacity,(-1, 1, feature_size)).astype(np.float32)
+    train_x, train_y, train_data, test_data = get_train_test_from_df(battery_df, test_cell_name, feature_size)
+    x = np.reshape(train_x/Rated_Capacity,(-1,feature_size, 1)).astype(np.float32)
     y = np.reshape(train_y/Rated_Capacity,(-1,1)).astype(np.float32) 
 
     x, y = torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
-    x = x.repeat(1, K, 1)
     return x, y
 
-def load_data_from_csv():
-    battery_df = pd.read_csv('datasets/CALCE/CALCE.csv')
-    name = 'CS2_35'
-    feature_size = 64
-    train_x, train_y, train_data, test_data = get_train_test_from_df(battery_df, name, feature_size)
-    x = np.reshape(train_x/Rated_Capacity,(-1, 1, feature_size)).astype(np.float32)
-    y = np.reshape(train_y/Rated_Capacity,(-1,1)).astype(np.float32) 
 
-    x, y = torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
-    x = x.repeat(1, K, 1)
-    return x, y
-    
     
 if __name__ == "__main__":
     
-    x, y = load_data_from_npy()
-    # x, y = load_data_from_csv()
+    # x, y = load_data_from_npy()
+    # x, y = load_data_from_csv(cell_type="CALCE", test_cell_name="CS2_35")
+    x, y = load_data_from_csv(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    print(f'x.shape: {x.shape}, y.shape: {y.shape}')
+
+    
     model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     losses = []
