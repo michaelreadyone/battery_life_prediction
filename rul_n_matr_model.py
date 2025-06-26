@@ -24,6 +24,9 @@ alpha = 0.1
 metric = 're'
 seed = 0
 device = "cpu"
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
 class PositionalEncoding(nn.Module):
     def __init__(self, feature_len, feature_size, dropout=0.0):
@@ -129,6 +132,8 @@ if __name__ == "__main__":
     print(f'x.shape: {x.shape}, y.shape: {y.shape}')
 
     model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
+    print(f"Total trainable parameters: {count_parameters(model):,}")
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     losses = []
     
