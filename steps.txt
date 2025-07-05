@@ -39,6 +39,16 @@ Next Steps
 
 
 
+Now doing:
+
+之前的研究是，为什么paper的方法loss下降的快。
+
+使用16个cell records上的feature来对标原来paper的方法，即重复16次的方法。所以这个feature的结构是什么？
+
+发现summary里的disc cap和records里的disc cap不一样，怎么破
+
+那就用records里面的cycle life作为标准，重新计算，再做成module，即使后面要改回cycle的数据，也方便操作。
 
 
 
+写一个function 计算RE，并且画出预测电池寿命和实际寿命

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from utils import get_train_test, get_train_test_from_df, setup_seed
 import pandas as pd
+import os
 
 seed=0
 setup_seed(seed)
@@ -122,6 +123,47 @@ def load_data_from_csv(cell_type, test_cell_name):
     x = x.repeat(1, K, 1)
     return x, y
 
+def generate_cycle_cap(x_seed, model_path, generated_length):
+    """
+    Generate capacity sequence using the trained model.
+
+    Args:
+        x_seed (torch.Tensor): Seed input of shape (1, K, feature_size), where K is window size.
+        model_path (str): Path to the trained model weights (.pth).
+        generated_length (int): Number of capacity points to generate.
+
+    Returns:
+        List[float]: Generated capacity values (normalized).
+    """
+    # Initialize model
+    model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead).to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    # Start with seed input: shape (1, K, feature_size)
+    generated = []
+    current_input = x_seed.clone()
+
+    with torch.no_grad():
+        for _ in range(generated_length):
+            # Predict next capacity
+            out = model(current_input)  # shape: (1, 1)
+            next_cap = out.item()
+            generated.append(next_cap)
+
+            # Create next input window
+            # Remove the oldest feature vector, append the new one (we assume you have a mechanism to generate it)
+            # Here, we naively repeat the last vector or introduce randomness if needed
+            
+            next_feature = current_input[:, -1:, :].clone()  # shape: (1, 1, feature_size)
+            # Optionally inject signal/noise into next_feature to simulate cycle evolution
+            # next_feature = ... 
+
+            # Roll the sequence
+            current_input = torch.cat([current_input[:, 1:], next_feature], dim=1)
+
+    return generated
+
 
     
 if __name__ == "__main__":
@@ -150,6 +192,7 @@ if __name__ == "__main__":
         if (epoch+1) % 10 == 0:
             loss_avg = np.mean(losses[-10:])
             print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, epochs, loss_avg))
+            torch.save(model.state_dict(), f'model_epoch_{epoch+1}.pth')
         
         
     
