@@ -2,6 +2,7 @@ import os
 import random
 import numpy as np
 from math import sqrt
+import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import torch
 
@@ -60,6 +61,23 @@ def get_train_test_from_df(battery_df, name, window_size):
             
     return train_x, train_y, list(train_data), list(test_data)
 
+def load_csv_data(cell_type):
+    input_data_dict = {
+        "CALCE": "./datasets/CALCE/CALCE.csv",
+        "matr": "./datasets/matr/matr_part.csv"
+    }
+    wanted_columns = ['cycle', 'capacity', 'cell_name']
+    
+    if cell_type == "CALCE":
+        df = pd.read_csv(input_data_dict[cell_type])
+        return df[wanted_columns]
+    if cell_type == "matr":
+        df = pd.read_csv(input_data_dict[cell_type])
+        # print(f'dfread {df}')
+        df["cycle"] = df["cycle_index"]
+        df["capacity"] = df["discharge_capacity"]
+        df["cell_name"] = df["file_name"]
+        return df[wanted_columns]
 
 def setup_seed(seed):
     np.random.seed(seed)  # Numpy module.

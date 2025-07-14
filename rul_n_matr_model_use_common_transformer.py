@@ -2,8 +2,10 @@ import numpy as np
 import math
 import torch
 import torch.nn as nn
-from utils import get_train_test, get_train_test_from_df, setup_seed
+from utils import get_train_test, get_train_test_from_df, load_csv_data, setup_seed
 import pandas as pd
+import os
+import plotly.graph_objects as go
 
 seed=0
 setup_seed(seed)
@@ -75,26 +77,8 @@ class Transformer(nn.Module):
         # print(f'after lm_head, x.shape: {x.shape}')
         return x
 
-
-def load_csv_data(cell_type):
-    input_data_dict = {
-        "CALCE": "./datasets/CALCE/CALCE.csv",
-        "matr": "./datasets/matr/matr_part.csv"
-    }
-    wanted_columns = ['cycle', 'capacity', 'cell_name']
     
-    if cell_type == "CALCE":
-        df = pd.read_csv(input_data_dict[cell_type])
-        return df[wanted_columns]
-    if cell_type == "matr":
-        df = pd.read_csv(input_data_dict[cell_type])
-        # print(f'dfread {df}')
-        df["cycle"] = df["cycle_index"]
-        df["capacity"] = df["discharge_capacity"]
-        df["cell_name"] = df["file_name"]
-        return df[wanted_columns]
-    
-def load_data_from_csv(cell_type, test_cell_name):
+def get_train_data(cell_type, test_cell_name):
     battery_df = load_csv_data(cell_type)
     battery_df['cycle'] = battery_df['cycle'].astype(int)
     battery_df = battery_df[battery_df['cycle'] != 0]
@@ -107,13 +91,76 @@ def load_data_from_csv(cell_type, test_cell_name):
     x, y = torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
     return x, y
 
+def generate(model_weights_path, input_sequence, generate_length):
+    model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
+    model.load_state_dict(torch.load(model_weights_path, map_location=device))
+    model.eval()
+    
+    input_seq = torch.tensor(input_sequence, dtype=torch.float32).to(device)
+    if len(input_seq.shape) == 2:
+        input_seq = input_seq.unsqueeze(0)
+    
+    output_sequence = []
+    current_seq = input_seq.clone()
+    
+    with torch.no_grad():
+        for _ in range(generate_length):
+            pred = model(current_seq)
+            next_value = pred.unsqueeze(-1)
+            output_sequence.append(next_value.cpu().numpy())
+            
+            current_seq = torch.cat([current_seq[:, 1:, :], next_value], dim=1)
+    
+    output_sequence = np.concatenate(output_sequence, axis=1).squeeze(0).squeeze(-1)
+    total_sequence = np.concatenate([input_sequence.squeeze(), output_sequence], axis=0)
+    
+    return total_sequence
+
+def plot_cyclelife(sequence, input_length=None):
+    idx = np.arange(len(sequence))
+    
+    fig = go.Figure()
+    
+    if input_length is not None:
+        fig.add_trace(go.Scatter(
+            x=idx[:input_length], 
+            y=sequence[:input_length],
+            mode='lines',
+            name='Input Sequence',
+            line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=idx[input_length:], 
+            y=sequence[input_length:],
+            mode='lines',
+            name='Generated Sequence',
+            line=dict(color='red')
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=idx, 
+            y=sequence,
+            mode='lines',
+            name='Sequence',
+            line=dict(color='blue')
+        ))
+    
+    fig.update_layout(
+        title='Battery Capacity Sequence',
+        xaxis_title='Index',
+        yaxis_title='Normalized Capacity',
+        showlegend=True
+    )
+    
+    fig.show()
 
     
-if __name__ == "__main__":
+def train():
+    os.makedirs('./saved_models/rul_n_matr_model_use_common_transformer/', exist_ok=True)
     
     # x, y = load_data_from_npy()
-    # x, y = load_data_from_csv(cell_type="CALCE", test_cell_name="CS2_35")
-    x, y = load_data_from_csv(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    # x, y = get_train_data(cell_type="CALCE", test_cell_name="CS2_35")
+    x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
     print(f'x.shape: {x.shape}, y.shape: {y.shape}')
 
     
@@ -136,9 +183,27 @@ if __name__ == "__main__":
         if (epoch+1) % 10 == 0:
             loss_avg = np.mean(losses[-10:])
             print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, epochs, loss_avg))
-        
-        
+            torch.save(model.state_dict(), f'./saved_models/rul_n_matr_model_use_common_transformer/epoch_{epoch+1}.pth')
+
+if __name__ == "__main__":
+    train()
     
+    # Test generate function
+    model_path = './saved_models/rul_n_matr_model_use_common_transformer/epoch_500.pth'
+    x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
     
+    # Use first sequence as input
+    input_seq = x[0].cpu().numpy()
+    generate_len = 500
     
+    print(f'\nTesting generate function:')
+    print(f'Input sequence shape: {input_seq.shape}')
+    print(f'Generate length: {generate_len}')
     
+    total_seq = generate(model_path, input_seq, generate_len)
+    print(f'Total sequence shape: {total_seq.shape}')
+    print(f'Original input length: {len(input_seq)}')
+    print(f'Generated sequence length: {len(total_seq) - len(input_seq)}')
+    
+    # Plot total_seq using plot_cyclelife function
+    plot_cyclelife(total_seq, len(input_seq))

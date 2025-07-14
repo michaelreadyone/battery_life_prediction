@@ -52,3 +52,7 @@ Now doing:
 
 
 写一个function 计算RE，并且画出预测电池寿命和实际寿命
+
+在normal trasformer的module里， 加入了generate方法，和plot的方法，加载epoch500次的weights后，通过plot生成的cycle life图看上去是合理的。
+
+然而，在paper transformer里，我把相同的functioin migrate过去后，发现有bug，通过claude code的debug后，发现input sequence只有16，并且生成的数据看上去也有问题。感觉应该是transformer过程中，paper layer里奇怪的tensor处理方式导致的。现在的目标就是看看为什么input sequence是16而不是64，而且为什么16个value都是一样的。

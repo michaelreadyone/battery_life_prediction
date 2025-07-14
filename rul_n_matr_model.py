@@ -2,9 +2,10 @@ import numpy as np
 import math
 import torch
 import torch.nn as nn
-from utils import get_train_test, get_train_test_from_df, setup_seed
+from utils import get_train_test, get_train_test_from_df, load_csv_data, setup_seed
 import pandas as pd
 import os
+import plotly.graph_objects as go
 
 seed=0
 setup_seed(seed)
@@ -91,86 +92,93 @@ def load_data_from_npy():
     x = x.repeat(1, K, 1)
     return x, y
 
-def load_csv_data(cell_type):
-    input_data_dict = {
-        "CALCE": "./datasets/CALCE/CALCE.csv",
-        "matr": "./datasets/matr/matr_part.csv"
-    }
-    wanted_columns = ['cycle', 'capacity', 'cell_name']
     
-    if cell_type == "CALCE":
-        df = pd.read_csv(input_data_dict[cell_type])
-        return df[wanted_columns]
-    if cell_type == "matr":
-        df = pd.read_csv(input_data_dict[cell_type])
-        # print(f'dfread {df}')
-        df["cycle"] = df["cycle_index"]
-        df["capacity"] = df["discharge_capacity"]
-        df["cell_name"] = df["file_name"]
-        return df[wanted_columns]
-    
-def load_data_from_csv(cell_type, test_cell_name):
+def get_train_data(cell_type, test_cell_name):
     battery_df = load_csv_data(cell_type)
     battery_df['cycle'] = battery_df['cycle'].astype(int)
     battery_df = battery_df[battery_df['cycle'] != 0]
     
     feature_size = 64
     train_x, train_y, train_data, test_data = get_train_test_from_df(battery_df, test_cell_name, feature_size)
+    print(f'train_x.shape: {train_x.shape}, train_y.shape: {train_y.shape}')
     x = np.reshape(train_x/Rated_Capacity,(-1, 1, feature_size)).astype(np.float32)
     y = np.reshape(train_y/Rated_Capacity,(-1,1)).astype(np.float32) 
+    print(f'after reshape, x.shape: {x.shape}, y.shape: {y.shape}')
 
     x, y = torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
     x = x.repeat(1, K, 1)
+    print(f'after repeat, x.shape: {x.shape}, y.shape: {y.shape}')
     return x, y
 
-def generate_cycle_cap(x_seed, model_path, generated_length):
-    """
-    Generate capacity sequence using the trained model.
-
-    Args:
-        x_seed (torch.Tensor): Seed input of shape (1, K, feature_size), where K is window size.
-        model_path (str): Path to the trained model weights (.pth).
-        generated_length (int): Number of capacity points to generate.
-
-    Returns:
-        List[float]: Generated capacity values (normalized).
-    """
-    # Initialize model
-    model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+def generate(model_weights_path, input_sequence, generate_length):
+    model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
+    model.load_state_dict(torch.load(model_weights_path, map_location=device))
     model.eval()
-
-    # Start with seed input: shape (1, K, feature_size)
-    generated = []
-    current_input = x_seed.clone()
-
-    with torch.no_grad():
-        for _ in range(generated_length):
-            # Predict next capacity
-            out = model(current_input)  # shape: (1, 1)
-            next_cap = out.item()
-            generated.append(next_cap)
-
-            # Create next input window
-            # Remove the oldest feature vector, append the new one (we assume you have a mechanism to generate it)
-            # Here, we naively repeat the last vector or introduce randomness if needed
-            
-            next_feature = current_input[:, -1:, :].clone()  # shape: (1, 1, feature_size)
-            # Optionally inject signal/noise into next_feature to simulate cycle evolution
-            # next_feature = ... 
-
-            # Roll the sequence
-            current_input = torch.cat([current_input[:, 1:], next_feature], dim=1)
-
-    return generated
-
-
     
-if __name__ == "__main__":
+    input_seq = torch.tensor(input_sequence, dtype=torch.float32).to(device)
+    if len(input_seq.shape) == 2:
+        input_seq = input_seq.unsqueeze(0)
+    
+    output_sequence = []
+    current_seq = input_seq.clone()
+    
+    with torch.no_grad():
+        for _ in range(generate_length):
+            pred = model(current_seq)
+            next_value = pred.unsqueeze(-1).repeat(1, 1, feature_size)
+            output_sequence.append(pred.cpu().numpy())
+            
+            current_seq = torch.cat([current_seq[:, 1:, :], next_value], dim=1)
+    
+    output_sequence = np.concatenate(output_sequence, axis=0).squeeze()
+    total_sequence = np.concatenate([input_sequence[:, 0], output_sequence], axis=0)
+    
+    return total_sequence
+
+def plot_cyclelife(sequence, input_length=None):
+    idx = np.arange(len(sequence))
+    
+    fig = go.Figure()
+    
+    if input_length is not None:
+        fig.add_trace(go.Scatter(
+            x=idx[:input_length], 
+            y=sequence[:input_length],
+            mode='lines',
+            name='Input Sequence',
+            line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=idx[input_length:], 
+            y=sequence[input_length:],
+            mode='lines',
+            name='Generated Sequence',
+            line=dict(color='red')
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=idx, 
+            y=sequence,
+            mode='lines',
+            name='Sequence',
+            line=dict(color='blue')
+        ))
+    
+    fig.update_layout(
+        title='Battery Capacity Sequence',
+        xaxis_title='Index',
+        yaxis_title='Normalized Capacity',
+        showlegend=True
+    )
+    
+    fig.show()
+
+def train():
+    os.makedirs('./saved_model/rul_n_matr_model/', exist_ok=True)
     
     # x, y = load_data_from_npy()
-    # x, y = load_data_from_csv(cell_type="CALCE", test_cell_name="CS2_35")
-    x, y = load_data_from_csv(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    # x, y = get_train_data(cell_type="CALCE", test_cell_name="CS2_35")
+    x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
     print(f'x.shape: {x.shape}, y.shape: {y.shape}')
 
     model = Transformer(feature_size, hidden_dim, feature_num, num_layers, nhead)
@@ -192,7 +200,30 @@ if __name__ == "__main__":
         if (epoch+1) % 10 == 0:
             loss_avg = np.mean(losses[-10:])
             print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch + 1, epochs, loss_avg))
-            torch.save(model.state_dict(), f'model_epoch_{epoch+1}.pth')
+            torch.save(model.state_dict(), f'./saved_models/rul_n_matr_model/epoch_{epoch+1}.pth')
+    
+if __name__ == "__main__":
+    # train()
+    
+    # Test generate function
+    model_path = './saved_models/rul_n_matr_model/epoch_500.pth'
+    x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    
+    # Use first sequence as input
+    input_seq = x[0].cpu().numpy()
+    generate_len = 500
+    
+    print(f'\nTesting generate function:')
+    print(f'Input sequence shape: {input_seq.shape}')
+    print(f'Generate length: {generate_len}')
+    
+    total_seq = generate(model_path, input_seq, generate_len)
+    print(f'Total sequence shape: {total_seq.shape}')
+    print(f'Original input length: {len(input_seq)}')
+    print(f'Generated sequence length: {len(total_seq) - len(input_seq)}')
+    
+    # Plot total_seq using plot_cyclelife function
+    plot_cyclelife(total_seq, len(input_seq))
         
         
     
