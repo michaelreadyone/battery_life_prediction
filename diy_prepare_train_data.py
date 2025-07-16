@@ -38,8 +38,8 @@ def prepare_sequences(battery_df, window_size, test_cell_name):
             X_list.append(X_window)
             y_list.append(y_target)
     
-    X_tensor = torch.FloatTensor(X_list)
-    y_tensor = torch.FloatTensor(y_list)
+    X_tensor = torch.FloatTensor(np.array(X_list))
+    y_tensor = torch.FloatTensor(np.array(y_list))
     return X_tensor, y_tensor
 
 def create_data_loader(X_tensor, y_tensor, batch_size=32, shuffle=True):
@@ -47,40 +47,27 @@ def create_data_loader(X_tensor, y_tensor, batch_size=32, shuffle=True):
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
     return dataloader
 
-
-# Example usage
-if __name__ == "__main__":
-    
-    cell_type = "matr"
+def prepare_train_data(cell_type, test_cell_name, window_size):
     battery_df = load_csv_data(cell_type)
     battery_df['cycle'] = battery_df['cycle'].astype(int)
     battery_df = battery_df[battery_df['cycle'] != 0]
-    """battery_df containsbattery cycling data. It contains fields:
-    - cycle
-    - capacity
-    - cell_name
-    """
-    
-    
-    # Test with window size of 64 and exclude first cell as test
-    cell_names = battery_df['cell_name'].unique()
-    print(f'training cell names: {cell_names}')
-    test_cell = "FastCharge_000001_CH38_structure"
-    # print(f"Test cell: {test_cell}")
+    X, y = prepare_sequences(battery_df, window_size, test_cell_name)
+    return X, y
+
+# Example usage
+if __name__ == "__main__":
+    cell_type = "matr"
+    test_cell_name = "FastCharge_000001_CH38_structure"
     window_size = 64
+    batch_size = 32
     
-    X, y = prepare_sequences(battery_df, window_size, test_cell)
-    print(f"Generated {len(X)} sequences")
-    print(f"X shape: {X.shape}, y shape: {y.shape}")
-    print(f"Test cell excluded: {test_cell}")
-    print(f"Training cells: {len(cell_names) - 1}")
     
     # Create DataLoader
-    train_loader = create_data_loader(X, y, batch_size=32, shuffle=True)
-    print(f"Created DataLoader with {len(train_loader)} batches")
+    X_tensor, y_tensor = prepare_train_data(cell_type, test_cell_name, window_size)
+    dataloader = create_data_loader(X_tensor, y_tensor, batch_size=batch_size, shuffle=True)
     
     # Test DataLoader
-    for batch_idx, (batch_x, batch_y) in enumerate(train_loader):
-        print(f"Batch {batch_idx}: X shape {batch_x.shape}, y shape {batch_y.shape}")
-        if batch_idx == 2:  # Only show first 3 batches
-            break
+    for X, y in dataloader:
+        print(f"X shape: {X.shape}, y shape: {y.shape}")
+        print(f'X: {X}, y: {y}')
+        break

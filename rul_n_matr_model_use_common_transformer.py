@@ -15,7 +15,7 @@ Rated_Capacity = 1.1
 feature_size = 64
 feature_num = K
 dropout = 0.0
-epochs = 500
+epochs = 50
 nhead = 1
 hidden_dim = 16
 num_layers = 3
@@ -188,22 +188,22 @@ def train():
 if __name__ == "__main__":
     train()
     
-    # Test generate function
-    model_path = './saved_models/rul_n_matr_model_use_common_transformer/epoch_500.pth'
-    x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
+    # # Test generate function
+    # model_path = './saved_models/rul_n_matr_model_use_common_transformer/epoch_500.pth'
+    # x, y = get_train_data(cell_type="matr", test_cell_name="FastCharge_000001_CH38_structure")
     
-    # Use first sequence as input
-    input_seq = x[0].cpu().numpy()
-    generate_len = 500
+    # # Use first sequence as input
+    # input_seq = x[0].cpu().numpy()
+    # generate_len = 500
     
-    print(f'\nTesting generate function:')
-    print(f'Input sequence shape: {input_seq.shape}')
-    print(f'Generate length: {generate_len}')
+    # print(f'\nTesting generate function:')
+    # print(f'Input sequence shape: {input_seq.shape}')
+    # print(f'Generate length: {generate_len}')
     
-    total_seq = generate(model_path, input_seq, generate_len)
-    print(f'Total sequence shape: {total_seq.shape}')
-    print(f'Original input length: {len(input_seq)}')
-    print(f'Generated sequence length: {len(total_seq) - len(input_seq)}')
+    # total_seq = generate(model_path, input_seq, generate_len)
+    # print(f'Total sequence shape: {total_seq.shape}')
+    # print(f'Original input length: {len(input_seq)}')
+    # print(f'Generated sequence length: {len(total_seq) - len(input_seq)}')
     
-    # Plot total_seq using plot_cyclelife function
-    plot_cyclelife(total_seq, len(input_seq))
+    # # Plot total_seq using plot_cyclelife function
+    # plot_cyclelife(total_seq, len(input_seq))
