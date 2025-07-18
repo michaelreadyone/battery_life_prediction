@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from utils import load_csv_data
+from utils import load_csv_data, get_train_test_from_df
 
 def prepare_sequences(battery_df, window_size, test_cell_name):
     """
@@ -54,6 +54,22 @@ def prepare_train_data(cell_type, test_cell_name, window_size):
     X, y = prepare_sequences(battery_df, window_size, test_cell_name)
     return X, y
 
+def prepare_train_data_original_style(cell_type, test_cell_name, feature_size=64, Rated_Capacity=1.1):
+    """
+    Prepare training data using the original approach from rul_n_matr_model_use_common_transformer.py
+    Returns properly shaped and normalized data like the original.
+    """
+    battery_df = load_csv_data(cell_type)
+    battery_df['cycle'] = battery_df['cycle'].astype(int)
+    battery_df = battery_df[battery_df['cycle'] != 0]
+    
+    train_x, train_y, train_data, test_data = get_train_test_from_df(battery_df, test_cell_name, feature_size)
+    x = np.reshape(train_x/Rated_Capacity, (-1, feature_size, 1)).astype(np.float32)
+    y = np.reshape(train_y/Rated_Capacity, (-1, 1)).astype(np.float32)
+    
+    x, y = torch.from_numpy(x), torch.from_numpy(y)
+    return x, y
+
 # Example usage
 if __name__ == "__main__":
     cell_type = "matr"
@@ -61,13 +77,17 @@ if __name__ == "__main__":
     window_size = 64
     batch_size = 32
     
-    
-    # Create DataLoader
+    print("Testing original windowing approach:")
     X_tensor, y_tensor = prepare_train_data(cell_type, test_cell_name, window_size)
+    print(f"Windowing: X shape: {X_tensor.shape}, y shape: {y_tensor.shape}")
+    
+    print("\nTesting original-style data preparation:")
+    X_orig, y_orig = prepare_train_data_original_style(cell_type, test_cell_name, window_size)
+    print(f"Original style: X shape: {X_orig.shape}, y shape: {y_orig.shape}")
+    
     dataloader = create_data_loader(X_tensor, y_tensor, batch_size=batch_size, shuffle=True)
     
     # Test DataLoader
     for X, y in dataloader:
-        print(f"X shape: {X.shape}, y shape: {y.shape}")
-        print(f'X: {X}, y: {y}')
+        print(f"\nDataLoader: X shape: {X.shape}, y shape: {y.shape}")
         break
